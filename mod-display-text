@@ -1,0 +1,2 @@
+Idea: Sometimes the text you want to display isn't the same as the text you want to return.
+Give an option to run a function on the input for the display, but still return the original text once selected.
