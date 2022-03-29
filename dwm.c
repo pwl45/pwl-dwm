@@ -1,4 +1,4 @@
-/* See LICENSE file for copyright and license details.
+/*
  *
  * dynamic window manager is designed like any other X client as well. It is
  * driven through handling X events. In contrast to other X clients, a window
@@ -108,6 +108,12 @@ struct Client {
 };
 
 typedef struct {
+	const char* command;
+	void (*func)(const Arg *);
+	const Arg arg;
+} Command;
+
+typedef struct {
 	unsigned int mod;
 	KeySym keysym;
 	void (*func)(const Arg *);
@@ -197,13 +203,14 @@ static void movemouse(const Arg *arg);
 static Client *nexttiled(Client *c);
 static void pop(Client *);
 static void propertynotify(XEvent *e);
+static void quit1(const Arg *arg);
 static void quit(const Arg *arg);
 static Monitor *recttomon(int x, int y, int w, int h);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void resizeclient(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void restack(Monitor *m);
-static void run(void);
+static int run(void);
 static void scan(void);
 static int sendevent(Client *c, Atom proto);
 static void sendmon(Client *c, Monitor *m);
@@ -280,6 +287,7 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 };
 static Atom wmatom[WMLast], netatom[NetLast];
 static int running = 1;
+static int retval = EXIT_SUCCESS;
 static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
@@ -1334,6 +1342,12 @@ quit(const Arg *arg)
 	running = 0;
 }
 
+void
+quit1(const Arg *arg)
+{
+	running = 0;
+	retval=EXIT_FAILURE;
+}
 Monitor *
 recttomon(int x, int y, int w, int h)
 {
@@ -1452,15 +1466,20 @@ restack(Monitor *m)
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 }
 
-void
+int
 run(void)
 {
 	XEvent ev;
 	/* main event loop */
 	XSync(dpy, False);
-	while (running && !XNextEvent(dpy, &ev))
+	/* int i=0; */
+	while (running && !XNextEvent(dpy, &ev)){
+		/* fprintf(stderr, "whoa%d\n",i); */
 		if (handler[ev.type])
 			handler[ev.type](&ev); /* call handler */
+		/* i++; */
+	}
+	return retval;
 }
 
 void
@@ -2398,8 +2417,10 @@ main(int argc, char *argv[])
 		die("pledge");
 #endif /* __OpenBSD__ */
 	scan();
+	mkfifo(".dwm-fifo",0666);
 	run();
+	unlink(".dwm-fifo");
 	cleanup();
 	XCloseDisplay(dpy);
-	return EXIT_SUCCESS;
+	return retval;
 }

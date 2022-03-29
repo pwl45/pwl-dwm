@@ -32,7 +32,8 @@ static const Rule rules[] = {
 	/* class     instance  title           tags mask  isfloating  isterminal  noswallow  monitor */
 	{ "Gimp",    NULL,     NULL,           0,         1,          0,           0,        -1 },
 	{ "Firefox", NULL,     NULL,           1 << 8,    0,          0,          -1,        -1 },
-	{ "brave-browser",NULL,NULL,           1 << 8,    0,          0,          -1,        -1 },
+	{ "discord", NULL,     NULL,           1 << 7,    0,          0,          -1,        -1 },
+	{ "Brave-browser",NULL,NULL,           1 << 8,    0,          0,          -1,        -1 },
 	{ "St",      NULL,     NULL,           0,         0,          1,           0,        -1 },
 	{ NULL,      NULL,     "Event Tester", 0,         0,          0,           1,        -1 }, /* xev */
 	/* class      instance    title       tags mask     isfloating   monitor */
@@ -96,6 +97,8 @@ static Key keys[] = {
 	{ MODKEY,                       XK_d,      incnmaster,     {.i = -1 } },
 	{ MODKEY,                       XK_h,      setmfact,       {.f = -0.05} },
 	{ MODKEY,                       XK_l,      setmfact,       {.f = +0.05} },
+	{ MODKEY|ShiftMask,             XK_h,      setmfact,       {.f = -0.025} },
+	{ MODKEY|ShiftMask,             XK_l,      setmfact,       {.f = +0.025} },
 	{ MODKEY,                       XK_Return, zoom,           {0} },
 	{ MODKEY,                       XK_Tab,    view,           {0} },
 	{ MODKEY|ShiftMask,             XK_c,      killclient,     {0} },
@@ -134,6 +137,8 @@ static Key keys[] = {
 	TAGKEYS(                        XK_8,                      7)
 	TAGKEYS(                        XK_9,                      8)
 	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
+	{ MODKEY|ShiftMask|OTHERMOD, XK_q,      quit1,           {0} },
+	{ MODKEY|ShiftMask|ControlMask, XK_q,      quit1,           {0} },
 };
 
 /* button definitions */
