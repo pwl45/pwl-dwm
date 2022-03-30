@@ -5,6 +5,7 @@
 /* appearance */
 static const unsigned int borderpx  = 2;        /* border pixel of windows */
 static const unsigned int snap      = 32;       /* snap pixel */
+static const int rmaster            = 0;        /* 0 means no bar */
 static const int showbar            = 1;        /* 0 means no bar */
 static const int topbar             = 1;        /* 0 means bottom bar */
 static const char *fonts[]          = { "monospace:size=10" };
@@ -21,6 +22,7 @@ static const char *colors[][3]      = {
 	[SchemeSel]  = { col_gray4, col_cyan,  selbordercolor  },
 };
 
+static const char *dwmfifo = "/tmp/dwm.fifo";
 /* tagging */
 static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
@@ -54,6 +56,7 @@ static const Layout layouts[] = {
 	{ "[]=",      tile },    /* first entry is default */
 	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ "[M]",      monocle },
+	{ "[D]",      deck },
 };
 
 /* key definitions */
@@ -105,8 +108,10 @@ static Key keys[] = {
 	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[2]} },
+	{ MODKEY,                       XK_c,      setlayout,      {.v = &layouts[3]} },
 	{ MODKEY,                       XK_space,  setlayout,      {0} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
+	{ MODKEY,                       XK_r,      togglermaster,  {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
 	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
 	//TODO: Make these monitor switching bindings a bit better
@@ -139,6 +144,69 @@ static Key keys[] = {
 	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
 	{ MODKEY|ShiftMask|OTHERMOD, XK_q,      quit1,           {0} },
 	{ MODKEY|ShiftMask|ControlMask, XK_q,      quit1,           {0} },
+};
+
+static Command commands[] = {
+	{ "dmenu",           spawn,          {.v = dmenucmd} },
+	{ "term",            spawn,          {.v = termcmd} },
+	{ "quit",            quit,           {0} },
+	{ "togglebar",       togglebar,      {0} },
+	{ "focusstack+",     focusstack,     {.i = +1} },
+	{ "focusstack-",     focusstack,     {.i = -1} },
+	{ "incnmaster+",     incnmaster,     {.i = +1} },
+	{ "incnmaster-",     incnmaster,     {.i = -1} },
+	{ "setmfact+",       setmfact,       {.f = +0.05} },
+	{ "setmfact-",       setmfact,       {.f = -0.05} },
+	{ "zoom",            zoom,           {0} },
+	{ "view",            view,           {0} },
+	{ "killclient",      killclient,     {0} },
+	{ "setlayout-tiled", setlayout,      {.v = &layouts[0]} },
+	{ "setlayout-float", setlayout,      {.v = &layouts[1]} },
+	{ "setlayout-mono",  setlayout,      {.v = &layouts[2]} },
+	{ "togglelayout",    setlayout,      {0} },
+	{ "togglefloating",  togglefloating, {0} },
+	{ "viewall",         view,           {.ui = ~0} },
+	{ "tag",             tag,            {.ui = ~0} },
+	{ "focusmon+",       focusmon,       {.i = +1} },
+	{ "focusmon-",       focusmon,       {.i = -1} },
+	{ "tagmon+",         tagmon,         {.i = +1} },
+	{ "tagmon-",         tagmon,         {.i = -1} },
+	{ "view1",           view,           {.ui = 1 << 0} },
+	{ "view2",           view,           {.ui = 1 << 1} },
+	{ "view3",           view,           {.ui = 1 << 2} },
+	{ "view4",           view,           {.ui = 1 << 3} },
+	{ "view5",           view,           {.ui = 1 << 4} },
+	{ "view6",           view,           {.ui = 1 << 5} },
+	{ "view7",           view,           {.ui = 1 << 6} },
+	{ "view8",           view,           {.ui = 1 << 7} },
+	{ "view9",           view,           {.ui = 1 << 8} },
+	{ "toggleview1",     toggleview,     {.ui = 1 << 0} },
+	{ "toggleview2",     toggleview,     {.ui = 1 << 1} },
+	{ "toggleview3",     toggleview,     {.ui = 1 << 2} },
+	{ "toggleview4",     toggleview,     {.ui = 1 << 3} },
+	{ "toggleview5",     toggleview,     {.ui = 1 << 4} },
+	{ "toggleview6",     toggleview,     {.ui = 1 << 5} },
+	{ "toggleview7",     toggleview,     {.ui = 1 << 6} },
+	{ "toggleview8",     toggleview,     {.ui = 1 << 7} },
+	{ "toggleview9",     toggleview,     {.ui = 1 << 8} },
+	{ "tag1",            tag,            {.ui = 1 << 0} },
+	{ "tag2",            tag,            {.ui = 1 << 1} },
+	{ "tag3",            tag,            {.ui = 1 << 2} },
+	{ "tag4",            tag,            {.ui = 1 << 3} },
+	{ "tag5",            tag,            {.ui = 1 << 4} },
+	{ "tag6",            tag,            {.ui = 1 << 5} },
+	{ "tag7",            tag,            {.ui = 1 << 6} },
+	{ "tag8",            tag,            {.ui = 1 << 7} },
+	{ "tag9",            tag,            {.ui = 1 << 8} },
+	{ "toggletag1",      toggletag,      {.ui = 1 << 0} },
+	{ "toggletag2",      toggletag,      {.ui = 1 << 1} },
+	{ "toggletag3",      toggletag,      {.ui = 1 << 2} },
+	{ "toggletag4",      toggletag,      {.ui = 1 << 3} },
+	{ "toggletag5",      toggletag,      {.ui = 1 << 4} },
+	{ "toggletag6",      toggletag,      {.ui = 1 << 5} },
+	{ "toggletag7",      toggletag,      {.ui = 1 << 6} },
+	{ "toggletag8",      toggletag,      {.ui = 1 << 7} },
+	{ "toggletag9",      toggletag,      {.ui = 1 << 8} },
 };
 
 /* button definitions */

@@ -21,6 +21,7 @@
  * To understand everything else, start reading main().
  */
 #include <errno.h>
+#include <fcntl.h>
 #include <locale.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -28,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/select.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
@@ -108,7 +110,7 @@ struct Client {
 };
 
 typedef struct {
-	const char* command;
+	const char* name;
 	void (*func)(const Arg *);
 	const Arg arg;
 } Command;
@@ -136,6 +138,7 @@ struct Monitor {
 	unsigned int seltags;
 	unsigned int sellt;
 	unsigned int tagset[2];
+	int rmaster;
 	int showbar;
 	int topbar;
 	Client *clients;
@@ -173,13 +176,16 @@ static void configure(Client *c);
 static void configurenotify(XEvent *e);
 static void configurerequest(XEvent *e);
 static Monitor *createmon(void);
+static void deck(Monitor *m);
 static void destroynotify(XEvent *e);
 static void detach(Client *c);
 static void detachstack(Client *c);
 static Monitor *dirtomon(int dir);
+static void dispatchcmd(void);
 static void drawbar(Monitor *m);
 static void drawbars(void);
 static void enternotify(XEvent *e);
+static Bool evpredicate();
 static void expose(XEvent *e);
 static void focus(Client *c);
 static void focusin(XEvent *e);
@@ -229,6 +235,7 @@ static void tagmon(const Arg *arg);
 static void tile(Monitor *);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
+static void togglermaster(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void swapviewandmon(const Arg *arg);
@@ -294,6 +301,7 @@ static Display *dpy;
 static Drw *drw;
 static Monitor *mons, *selmon;
 static Window root, wmcheckwin;
+static int fifofd;
 
 static xcb_connection_t *xcon;
 
@@ -569,6 +577,7 @@ cleanup(void)
 	XSync(dpy, False);
 	XSetInputFocus(dpy, PointerRoot, RevertToPointerRoot, CurrentTime);
 	XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
+	close(fifofd);
 }
 
 void
@@ -714,6 +723,7 @@ createmon(void)
 	m->tagset[0] = m->tagset[1] = 1;
 	m->mfact = mfact;
 	m->nmaster = nmaster;
+	m->rmaster = rmaster;
 	m->showbar = showbar;
 	m->topbar = topbar;
 	m->lt[0] = &layouts[0];
@@ -733,6 +743,38 @@ destroynotify(XEvent *e)
 
 	else if ((c = swallowingclient(ev->window)))
 		unmanage(c->swallowing, 1);
+}
+
+void
+deck(Monitor *m) {
+	unsigned int i, n, h, mw, my;
+	Client *c;
+
+	for(n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+	if(n == 0)
+		return;
+
+	if(n > m->nmaster) {
+		/* mw = m->nmaster ? m->ww * m->mfact : 0; */
+		mw = m->nmaster
+			? m->ww * (m->rmaster ? 1.0 - m->mfact : m->mfact)
+			: 0;
+		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n - m->nmaster);
+	}
+	else
+		mw = m->ww;
+	for(i = my = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
+		if(i < m->nmaster) {
+			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
+			/* resize(c, m->wx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), False); */
+			resize(c, m->rmaster ? m->wx + m->ww - mw : m->wx,
+					m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
+			my += HEIGHT(c);
+		}
+		else
+			/* resize(c, m->wx + mw, m->wy, m->ww - mw - (2*c->bw), m->wh - (2*c->bw), False); */
+			resize(c, m->rmaster ? m->wx : m->wx + mw, m->wy,
+					m->ww - mw - (2*c->bw), m->wh - (2*c->bw), 0);
 }
 
 void
@@ -771,6 +813,26 @@ dirtomon(int dir)
 	else
 		for (m = mons; m->next != selmon; m = m->next);
 	return m;
+}
+
+void
+dispatchcmd(void)
+{
+	int i;
+	char buf[BUFSIZ];
+	ssize_t n;
+
+	n = read(fifofd, buf, sizeof(buf) - 1);
+	if (n == -1)
+		die("Failed to read() from DWM fifo %s:", dwmfifo);
+	buf[n] = '\0';
+	buf[strcspn(buf, "\n")] = '\0';
+	for (i = 0; i < LENGTH(commands); i++) {
+		if (strcmp(commands[i].name, buf) == 0) {
+			commands[i].func(&commands[i].arg);
+			break;
+		}
+	}
 }
 
 void
@@ -830,6 +892,11 @@ drawbars(void)
 
 	for (m = mons; m; m = m->next)
 		drawbar(m);
+}
+Bool
+evpredicate()
+{
+	return True;
 }
 
 void
@@ -1470,14 +1537,32 @@ int
 run(void)
 {
 	XEvent ev;
-	/* main event loop */
+	fd_set rfds;
+	int n;
+	int dpyfd, maxfd;
 	XSync(dpy, False);
-	/* int i=0; */
-	while (running && !XNextEvent(dpy, &ev)){
-		/* fprintf(stderr, "whoa%d\n",i); */
-		if (handler[ev.type])
-			handler[ev.type](&ev); /* call handler */
-		/* i++; */
+	/* while (running && !XNextEvent(dpy, &ev)){ */
+	/* 	if (handler[ev.type]) */
+	/* 		handler[ev.type](&ev); /1* call handler *1/ */
+	/* } */
+	dpyfd = ConnectionNumber(dpy);
+	maxfd = fifofd;
+	if (dpyfd > maxfd)
+		maxfd = dpyfd;
+	maxfd++;
+	while (running) {
+		FD_ZERO(&rfds);
+		FD_SET(fifofd, &rfds);
+		FD_SET(dpyfd, &rfds);
+		n = select(maxfd, &rfds, NULL, NULL, NULL);
+		if (n > 0) {
+			if (FD_ISSET(fifofd, &rfds))
+				dispatchcmd();
+			if (FD_ISSET(dpyfd, &rfds))
+				while (XCheckIfEvent(dpy, &ev, evpredicate, NULL))
+					if (handler[ev.type])
+						handler[ev.type](&ev); /* call handler */
+		}
 	}
 	return retval;
 }
@@ -1696,6 +1781,9 @@ setup(void)
 	XSelectInput(dpy, root, wa.event_mask);
 	grabkeys();
 	focus(NULL);
+	fifofd = open(dwmfifo, O_RDWR | O_NONBLOCK);
+	if (fifofd < 0)
+		die("Failed to open() DWM fifo %s:", dwmfifo);
 }
 
 
@@ -1783,21 +1871,32 @@ tile(Monitor *m)
 		return;
 
 	if (n > m->nmaster)
-		mw = m->nmaster ? m->ww * m->mfact : 0;
+		mw = m->nmaster
+			? m->ww * (m->rmaster ? 1.0 - m->mfact : m->mfact)
+			: 0;
 	else
 		mw = m->ww;
 	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < m->nmaster) {
 			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
-			resize(c, m->wx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
-			if (my + HEIGHT(c) < m->wh)
-				my += HEIGHT(c);
+			resize(c, m->rmaster ? m->wx + m->ww - mw : m->wx,
+					m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
+			my += HEIGHT(c);
 		} else {
 			h = (m->wh - ty) / (n - i);
-			resize(c, m->wx + mw, m->wy + ty, m->ww - mw - (2*c->bw), h - (2*c->bw), 0);
-			if (ty + HEIGHT(c) < m->wh)
-				ty += HEIGHT(c);
+			resize(c, m->rmaster ? m->wx : m->wx + mw, m->wy + ty,
+					m->ww - mw - (2*c->bw), h - (2*c->bw), 0);
+			ty += HEIGHT(c);
 		}
+}
+void
+togglermaster(const Arg *arg)
+{
+	selmon->rmaster = !selmon->rmaster;
+	/* now mfact represents the left factor */
+	selmon->mfact = 1.0 - selmon->mfact;
+	if (selmon->lt[selmon->sellt]->arrange)
+		arrange(selmon);
 }
 
 void
