@@ -62,6 +62,9 @@ static const Layout layouts[] = {
 /* key definitions */
 #define MODKEY Mod4Mask
 #define OTHERMOD Mod1Mask
+//alt, gui: AG
+#define AG Mod1Mask|Mod4Mask
+
 #define TAGKEYS(KEY,TAG) \
 	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG} }, \
 	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG} }, \
@@ -69,6 +72,10 @@ static const Layout layouts[] = {
 	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} }, \
 	{ MODKEY|OTHERMOD,              KEY,      swapviewandmon, {.ui = 1 << TAG} }, \
 	{ MODKEY|ShiftMask|OTHERMOD,    KEY,      swapandsend, 	  {.ui = 1 << TAG} },
+
+#define AGKEYS(KEY,NUM) \
+	{ AG,                          KEY,      focusmonview,   {.i = NUM-1,} }, \
+	{ AG|ShiftMask,                KEY,      tagmonview,   {.i = NUM-1,} },
 
 /* helper for spawning shell commands in the pre dwm-5.0 fashion */
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
@@ -111,14 +118,21 @@ static Key keys[] = {
 	{ MODKEY,                       XK_c,      setlayout,      {.v = &layouts[3]} },
 	{ MODKEY,                       XK_space,  setlayout,      {0} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
-	{ MODKEY,                       XK_r,      togglermaster,  {0} },
+	/* { MODKEY,                       XK_r,      togglermaster,  {0} }, */
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
 	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
 	//TODO: Make these monitor switching bindings a bit better
-	{ MODKEY,                       XK_w,  focusmon,       {.i = -1 } },
-	{ MODKEY,                       XK_e, focusmon,       {.i = +1 } },
-	{ MODKEY|ShiftMask,             XK_w,  tagmon,         {.i = -1 } },
-	{ MODKEY|ShiftMask,             XK_e, tagmon,         {.i = +1 } },
+	{ MODKEY,                       XK_w,  focusnthmon,       {.i = 0 } },
+	{ MODKEY|ShiftMask,             XK_w,  tagnthmon,       	{.i = 0 } },
+	{ MODKEY,                       XK_e,  focusnthmon,       {.i = 1 } },
+	{ MODKEY|ShiftMask,             XK_e,  tagnthmon,       	{.i = 1 } },
+	{ MODKEY,                       XK_r,  focusnthmon,       {.i = 2 } },
+	{ MODKEY|ShiftMask,             XK_r,  tagnthmon,       	{.i = 2 } },
+
+	/* { MODKEY,                       XK_w,  focusmon,       {.i = -1 } }, */
+	/* { MODKEY,                       XK_e, focusmon,       {.i = +1 } }, */
+	/* { MODKEY|ShiftMask,             XK_w,  tagmon,         {.i = -1 } }, */
+	/* { MODKEY|ShiftMask,             XK_e, tagmon,         {.i = +1 } }, */
 	{ MODKEY,                       XK_comma,  focusmon,       {.i = -1 } },
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
@@ -141,9 +155,41 @@ static Key keys[] = {
 	TAGKEYS(                        XK_7,                      6)
 	TAGKEYS(                        XK_8,                      7)
 	TAGKEYS(                        XK_9,                      8)
+
+	AGKEYS(XK_1,1)
+	AGKEYS(XK_2,2)
+	AGKEYS(XK_3,3)
+	AGKEYS(XK_4,4)
+	AGKEYS(XK_5,5)
+	AGKEYS(XK_6,6)
+	AGKEYS(XK_7,7)
+	AGKEYS(XK_8,8)
+	AGKEYS(XK_9,9)
+
+	AGKEYS(XK_q,11)
+	AGKEYS(XK_w,12)
+	AGKEYS(XK_e,13)
+	AGKEYS(XK_r,14)
+	AGKEYS(XK_t,15)
+	AGKEYS(XK_y,16)
+	AGKEYS(XK_u,17)
+	AGKEYS(XK_i,18)
+	AGKEYS(XK_o,19)
+
+	AGKEYS(XK_a,21)
+	AGKEYS(XK_s,22)
+	AGKEYS(XK_d,23)
+	AGKEYS(XK_f,24)
+	AGKEYS(XK_g,25)
+	AGKEYS(XK_h,26)
+	AGKEYS(XK_j,27)
+	AGKEYS(XK_k,28)
+	AGKEYS(XK_l,29)
+
 	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
-	{ MODKEY|ShiftMask|OTHERMOD, XK_q,      quit1,           {0} },
-	{ MODKEY|ShiftMask|ControlMask, XK_q,      quit1,           {0} },
+	/* { MODKEY|ShiftMask|OTHERMOD, XK_q,      quit1,           {0} }, */
+	/* { MODKEY|ShiftMask|ControlMask, XK_q,      quit1,           {0} }, */
+	{ MODKEY|OTHERMOD|ControlMask, XK_q,      quit1,           {0} },
 };
 
 static Command commands[] = {

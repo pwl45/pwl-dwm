@@ -64,7 +64,8 @@
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
-
+#define RIGHTOF(a,b)            (a.y_org > b.y_org) || \
+                               ((a.y_org == b.y_org) && (a.x_org > b.x_org))
 /* enums */
 enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
 enum { SchemeNorm, SchemeSel }; /* color schemes */
@@ -74,6 +75,7 @@ enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
 enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
 enum { ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
        ClkClientWin, ClkRootWin, ClkLast }; /* clicks */
+
 
 typedef union {
 	int i;
@@ -181,6 +183,7 @@ static void destroynotify(XEvent *e);
 static void detach(Client *c);
 static void detachstack(Client *c);
 static Monitor *dirtomon(int dir);
+static Monitor *numtomon(int num);
 static void dispatchcmd(void);
 static void drawbar(Monitor *m);
 static void drawbars(void);
@@ -190,6 +193,8 @@ static void expose(XEvent *e);
 static void focus(Client *c);
 static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
+static void focusnthmon(const Arg *arg);
+static void focusmonview(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Atom getatomprop(Client *c, Atom prop);
 static int getrootptr(int *x, int *y);
@@ -229,9 +234,14 @@ static void setup(void);
 static void seturgent(Client *c, int urg);
 static void showhide(Client *c);
 static void sigchld(int unused);
+#ifdef XINERAMA
+static void sortscreens(XineramaScreenInfo *screens, int n);
+#endif /* XINERAMA */
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
+static void tagnthmon(const Arg *arg);
+static void tagmonview(const Arg *arg);
 static void tile(Monitor *);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
@@ -815,6 +825,19 @@ dirtomon(int dir)
 	return m;
 }
 
+Monitor *
+numtomon(int num)
+{
+	Monitor *m = NULL;
+	int i = 0;
+
+	for(m = mons, i=0; m->next && i < num; m = m->next){
+		i++;
+	}
+	return m;
+}
+
+
 void
 dispatchcmd(void)
 {
@@ -976,6 +999,34 @@ focusmon(const Arg *arg)
 	selmon = m;
 	focus(NULL);
 }
+
+void
+focusnthmon(const Arg *arg)
+{
+	Monitor *m;
+
+	if (!mons->next)
+		return;
+
+	if ((m = numtomon(arg->i)) == selmon)
+		return;
+	unfocus(selmon->sel, 0);
+	selmon = m;
+	focus(NULL);
+}
+
+
+void
+focusmonview(const Arg *arg){
+	int monnum = (arg->i) / 10;
+	int viewnum = 1 << (arg->i % 10); 
+	/* printf("%d %d %d\n",arg->i,monnum,viewnum); */
+	Arg monarg = {.i=monnum};
+	Arg viewarg = {.i=viewnum};
+	focusnthmon(&monarg);
+	view(&viewarg);
+}
+
 
 void
 focusstack(const Arg *arg)
@@ -1826,6 +1877,24 @@ sigchld(int unused)
 	while (0 < waitpid(-1, NULL, WNOHANG));
 }
 
+#ifdef XINERAMA
+void
+sortscreens(XineramaScreenInfo *screens, int n)
+{
+	int i, j;
+	XineramaScreenInfo *screen = ecalloc(1, sizeof(XineramaScreenInfo));
+
+	for (i = 0; i < n; i++)
+		for (j = i + 1; j < n; j++)
+			if (RIGHTOF(screens[i], screens[j])) {
+				memcpy(&screen[0], &screens[i], sizeof(XineramaScreenInfo));
+				memcpy(&screens[i], &screens[j], sizeof(XineramaScreenInfo));
+				memcpy(&screens[j], &screen[0], sizeof(XineramaScreenInfo));
+			}
+	XFree(screen);
+}
+#endif /* XINERAMA */
+
 void
 spawn(const Arg *arg)
 {
@@ -1859,6 +1928,38 @@ tagmon(const Arg *arg)
 		return;
 	sendmon(selmon->sel, dirtomon(arg->i));
 }
+
+void
+tagnthmon(const Arg *arg)
+{
+	if (!selmon->sel || !mons->next)
+		return;
+	sendmon(selmon->sel, numtomon(arg->i));
+}
+
+void
+tagmonview(const Arg *arg){
+	int monnum = (arg->i) / 10;
+	int viewnum = 1 << (arg->i % 10); 
+	Arg monarg = {.i=monnum};
+	Arg viewarg = {.i=viewnum};
+
+	tagnthmon(&monarg);
+	focusnthmon(&monarg);
+	tag(&viewarg);
+	view(&viewarg);
+}
+
+//Note: Sloppy, only works well for dual monitor (not 3+)
+/* void swapandsend(const Arg *arg){ */
+/* 	Arg otherarg = {.i=+1}; */
+
+/* 	tagmon(&otherarg); */
+/* 	focusmon(&otherarg); */
+/* 	tag(arg); */
+/* 	view(arg); */
+/* 	/1* keys[i].func(&(keys[i].arg)); *1/ */
+/* } */
 
 void
 tile(Monitor *m)
@@ -2108,6 +2209,7 @@ updategeom(void)
 				memcpy(&unique[j++], &info[i], sizeof(XineramaScreenInfo));
 		XFree(info);
 		nn = j;
+		sortscreens(unique, nn);
 		if (n <= nn) { /* new monitors available */
 			for (i = 0; i < (nn - n); i++) {
 				for (m = mons; m && m->next; m = m->next);

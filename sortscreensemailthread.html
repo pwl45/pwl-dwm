@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<!-- saved from url=(0063)https://www.mail-archive.com/hackers@suckless.org/msg09400.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>[hackers] Re: [dwm][PATCH] Sort screens by horizontal origin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="apple-touch-icon" sizes="114x114" href="https://www.mail-archive.com/apple-touch-icon-114x114.png">
+<link rel="apple-touch-icon" sizes="72x72" href="https://www.mail-archive.com/apple-touch-icon-72x72.png">
+<link rel="apple-touch-icon" sizes="57x57" href="https://www.mail-archive.com/apple-touch-icon-57x57.png">
+<link rel="shortcut icon" href="https://www.mail-archive.com/favicon.ico">
+<link rel="contents" href="https://www.mail-archive.com/hackers@suckless.org/index.html#09400" id="c">
+<link rel="index" href="https://www.mail-archive.com/hackers@suckless.org/maillist.html#09400" id="i">
+<link rel="prev" href="https://www.mail-archive.com/hackers@suckless.org/msg09386.html" id="p">
+<link rel="next" href="https://www.mail-archive.com/hackers@suckless.org/msg09407.html" id="n">
+<link rel="canonical" href="https://www.mail-archive.com/hackers@suckless.org/msg09400.html">
+<link rel="stylesheet" href="./[hackers] Re_ [dwm][PATCH] Sort screens by horizontal origin_files/normalize.css" media="screen">
+<link rel="stylesheet" href="./[hackers] Re_ [dwm][PATCH] Sort screens by horizontal origin_files/master.css" media="screen">
+
+<!--[if lt IE 9]>
+<link rel="stylesheet" href="/ie.css" media="screen">
+<![endif]-->
+<style>
+            .flipX video::-webkit-media-text-track-display {
+                transform: matrix(-1, 0, 0, 1, 0, 0) !important;
+            }
+            .flipXY video::-webkit-media-text-track-display {
+                transform: matrix(-1, 0, 0, -1, 0, 0) !important;
+            }
+            .flipXYX video::-webkit-media-text-track-display {
+                transform: matrix(1, 0, 0, -1, 0, 0) !important;
+            }</style><style>
+            @keyframes blinkWarning {
+                0% { color: red; }
+                100% { color: white; }
+            }
+            @-webkit-keyframes blinkWarning {
+                0% { color: red; }
+                100% { color: white; }
+            }
+            .blinkWarning {
+                -webkit-animation: blinkWarning 1s linear infinite;
+                -moz-animation: blinkWarning 1s linear infinite;
+                animation: blinkWarning 1s linear infinite;
+            }</style></head>
+<body>
+<script language="javascript" type="text/javascript">
+document.onkeydown = NavigateThrough;
+function NavigateThrough (event)
+{
+  if (!document.getElementById) return;
+  if (window.event) event = window.event;
+  if (event.target.tagName == 'INPUT') return;
+  if (event.ctrlKey || event.metaKey) return;
+  var link = null;
+  switch (event.keyCode ? event.keyCode : event.which ? event.which : null) {
+    case 74:
+    case 80:
+      link = document.getElementById ('p');
+      break;
+    case 75:
+    case 78:
+      link = document.getElementById ('n');
+      break;
+    case 69:
+      link = document.getElementById ('e');
+      break;
+    }
+  if (link && link.href) document.location = link.href;
+}
+</script>
+<div itemscope="" itemtype="http://schema.org/Article" class="container">
+<div class="skipLink">
+<a href="https://www.mail-archive.com/hackers@suckless.org/msg09400.html#nav">Skip to site navigation (Press enter)</a>
+</div>
+<div class="content" role="main">
+<div class="msgHead">
+<h1>
+<span class="subject"><a href="https://www.mail-archive.com/search?l=hackers@suckless.org&amp;q=subject:%22%5C%5Bhackers%5C%5D+Re%5C%3A+%5C%5Bdwm%5C%5D%5C%5BPATCH%5C%5D+Sort+screens+by+horizontal+origin%22&amp;o=newest" rel="nofollow"><span itemprop="name">[hackers] Re: [dwm][PATCH] Sort screens by horizontal origin</span></a></span>
+</h1>
+<p class="darkgray font13">
+<span class="sender pipe"><a href="https://www.mail-archive.com/search?l=hackers@suckless.org&amp;q=from:%22Sebastian+Sareyko%22" rel="nofollow"><span itemprop="author" itemscope="" itemtype="http://schema.org/Person"><span itemprop="name">Sebastian Sareyko</span></span></a></span>
+<span class="date"><a href="https://www.mail-archive.com/search?l=hackers@suckless.org&amp;q=date:20191007" rel="nofollow">Mon, 07 Oct 2019 11:36:15 -0700</a></span>
+</p>
+</div>
+<div itemprop="articleBody" class="msgBody">
+<!--X-Body-of-Message-->
+<pre>Here's an updated version of the patch that also takes the screens
+vertical positioning into account when sorting.</pre><pre>
+-- 
+Sebastian Sareyko
+</pre><pre>&gt;From fe6553c3d6e7e93aa74242cda0c33e05571147aa Mon Sep 17 00:00:00 2001
+From: Sebastian Sareyko &lt;s...@setq.dk&gt;
+Date: Fri, 27 Sep 2019 12:32:41 +0200
+Subject: [PATCH] Sort screens by origin
+
+Doing a multi-head setup using other means than Xinerama may lead to
+XineramaQueryScreens() returning the screens in an order that does not
+actually represent the actual screen layout. This in turn may result
+in dwm using the "wrong" monitor in monitor related
+functions (focusmon(), tagmon(), applying rules, ...).
+
+This change sorts the list of unique screens by their origin to
+alleviate this problem.
+---
+ dwm.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/dwm.c b/dwm.c
+index 4465af1..3a60b0c 100644
+--- a/dwm.c
++++ b/dwm.c
+@@ -56,6 +56,8 @@
+ #define HEIGHT(X)               ((X)-&gt;h + 2 * (X)-&gt;bw)
+ #define TAGMASK                 ((1 &lt;&lt; LENGTH(tags)) - 1)
+ #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
++#define RIGHTOF(a,b)            (a.y_org &gt; b.y_org) || \
++                               ((a.y_org == b.y_org) &amp;&amp; (a.x_org &gt; b.x_org))
+ 
+ /* enums */
+ enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
+@@ -205,6 +207,9 @@ static void setup(void);
+ static void seturgent(Client *c, int urg);
+ static void showhide(Client *c);
+ static void sigchld(int unused);
++#ifdef XINERAMA
++static void sortscreens(XineramaScreenInfo *screens, int n);
++#endif /* XINERAMA */
+ static void spawn(const Arg *arg);
+ static void tag(const Arg *arg);
+ static void tagmon(const Arg *arg);
+@@ -1636,6 +1641,24 @@ sigchld(int unused)
+ 	while (0 &lt; waitpid(-1, NULL, WNOHANG));
+ }
+ 
++#ifdef XINERAMA
++void
++sortscreens(XineramaScreenInfo *screens, int n)
++{
++	int i, j;
++	XineramaScreenInfo *screen = ecalloc(1, sizeof(XineramaScreenInfo));
++
++	for (i = 0; i &lt; n; i++)
++		for (j = i + 1; j &lt; n; j++)
++			if (RIGHTOF(screens[i], screens[j])) {
++				memcpy(&amp;screen[0], &amp;screens[i], sizeof(XineramaScreenInfo));
++				memcpy(&amp;screens[i], &amp;screens[j], sizeof(XineramaScreenInfo));
++				memcpy(&amp;screens[j], &amp;screen[0], sizeof(XineramaScreenInfo));
++			}
++	XFree(screen);
++}
++#endif /* XINERAMA */
++
+ void
+ spawn(const Arg *arg)
+ {
+@@ -1868,6 +1891,7 @@ updategeom(void)
+ 				memcpy(&amp;unique[j++], &amp;info[i], sizeof(XineramaScreenInfo));
+ 		XFree(info);
+ 		nn = j;
++		sortscreens(unique, nn);
+ 		if (n &lt;= nn) { /* new monitors available */
+ 			for (i = 0; i &lt; (nn - n); i++) {
+ 				for (m = mons; m &amp;&amp; m-&gt;next; m = m-&gt;next);
+-- 
+2.21.0
+
+</pre>
+
+</div>
+<div class="msgButtons margintopdouble">
+<ul class="overflow">
+<li class="msgButtonItems"><a class="button buttonleft " accesskey="p" href="https://www.mail-archive.com/hackers@suckless.org/msg09386.html">Previous message</a></li>
+<li class="msgButtonItems textaligncenter"><a class="button" accesskey="c" href="https://www.mail-archive.com/hackers@suckless.org/index.html#09400">View by thread</a></li>
+<li class="msgButtonItems textaligncenter"><a class="button" accesskey="i" href="https://www.mail-archive.com/hackers@suckless.org/maillist.html#09400">View by date</a></li>
+<li class="msgButtonItems textalignright"><a class="button buttonright " accesskey="n" href="https://www.mail-archive.com/hackers@suckless.org/msg09407.html">Next message</a></li>
+</ul>
+</div>
+<a name="tslice"></a>
+<div class="tSliceList margintopdouble">
+<ul class="icons monospace">
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09383.html">[hackers] [dwm][PATCH] Sort screens by horizontal ori...</a></span> <span class="sender italic">Sebastian Sareyko</span></li>
+<li><ul>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09384.html">Re: [hackers] [dwm][PATCH] Sort screens by horiz...</a></span> <span class="sender italic">Hiltjo Posthuma</span></li>
+<li><ul>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09385.html">Re: [hackers] [dwm][PATCH] Sort screens by h...</a></span> <span class="sender italic">Sebastian Sareyko</span></li>
+<li><ul>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09387.html">Re: [hackers] [dwm][PATCH] Sort screens ...</a></span> <span class="sender italic">Dave Woodfall</span></li>
+<li><ul>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09388.html">Re: [hackers] [dwm][PATCH] Sort scre...</a></span> <span class="sender italic">Sebastian Sareyko</span></li>
+<li><ul>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09389.html">Re: [hackers] [dwm][PATCH] Sort...</a></span> <span class="sender italic">Stein Gunnar Bakkeby</span></li>
+<li><ul>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09391.html">Re: [hackers] [dwm][PATCH] ...</a></span> <span class="sender italic">Sebastian Sareyko</span></li>
+</ul></li>
+</ul></li>
+</ul></li>
+</ul></li>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09386.html">Re: [hackers] [dwm][PATCH] Sort screens by h...</a></span> <span class="sender italic">Abdullah</span></li>
+</ul></li>
+<li class="icons-email tSliceCur"><span class="subject">[hackers] Re: [dwm][PATCH] Sort screens by horiz...</span> <span class="sender italic">Sebastian Sareyko</span></li>
+<li><ul>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09407.html">Re: [hackers] Re: [dwm][PATCH] Sort screens ...</a></span> <span class="sender italic">Sebastian Sareyko</span></li>
+<li><ul>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09408.html">Re: [hackers] Re: [dwm][PATCH] Sort scre...</a></span> <span class="sender italic">Abdullah</span></li>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09409.html">Re: [hackers] Re: [dwm][PATCH] Sort scre...</a></span> <span class="sender italic">Stein Gunnar Bakkeby</span></li>
+<li><ul>
+<li class="icons-email"><span class="subject"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09410.html">Re: [hackers] Re: [dwm][PATCH] Sort ...</a></span> <span class="sender italic">Sebastian Sareyko</span></li>
+</ul>
+</li></ul>
+</li></ul>
+</li></ul>
+</li></ul>
+</div>
+<div class="overflow msgActions margintopdouble">
+<div class="msgReply">
+<h2>
+					Reply via email to
+</h2>
+<form method="POST" action="https://www.mail-archive.com/mailto.php">
+<input type="hidden" name="subject" value="[hackers] Re: [dwm][PATCH] Sort screens by horizontal origin">
+<input type="hidden" name="msgid" value="87zhicigkw.fsf@george.fritz.box">
+<input type="hidden" name="relpath" value="hackers@suckless.org/msg09400.html">
+<input type="submit" value=" Sebastian Sareyko ">
+</form>
+</div>
+</div>
+</div>
+<div class="aside" role="complementary">
+<div class="logo">
+<a href="https://www.mail-archive.com/"><img src="./[hackers] Re_ [dwm][PATCH] Sort screens by horizontal origin_files/logo.png" width="247" height="88" alt="The Mail Archive"></a>
+</div>
+<form class="overflow" action="https://www.mail-archive.com/search" method="get">
+<input type="hidden" name="l" value="hackers@suckless.org">
+<label class="hidden" for="q">Search the site</label>
+<input class="submittext" type="text" id="q" name="q" placeholder="Search hackers">
+<input class="submitbutton" name="submit" type="image" src="./[hackers] Re_ [dwm][PATCH] Sort screens by horizontal origin_files/submit.png" alt="Submit">
+</form>
+<div class="nav margintop" id="nav" role="navigation">
+<ul class="icons font16">
+<li class="icons-home"><a href="https://www.mail-archive.com/">The Mail Archive home</a></li>
+<li class="icons-list"><a href="https://www.mail-archive.com/hackers@suckless.org/">hackers - all messages</a></li>
+<li class="icons-about"><a href="https://www.mail-archive.com/hackers@suckless.org/info.html">hackers - about the list</a></li>
+<li class="icons-expand"><a href="https://www.mail-archive.com/search?l=hackers@suckless.org&amp;q=subject:%22%5C%5Bhackers%5C%5D+Re%5C%3A+%5C%5Bdwm%5C%5D%5C%5BPATCH%5C%5D+Sort+screens+by+horizontal+origin%22&amp;o=newest&amp;f=1" title="e" id="e">Expand</a></li>
+<li class="icons-prev"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09386.html" title="p">Previous message</a></li>
+<li class="icons-next"><a href="https://www.mail-archive.com/hackers@suckless.org/msg09407.html" title="n">Next message</a></li>
+</ul>
+</div>
+<div class="listlogo margintopdouble">
+
+</div>
+<div class="margintopdouble">
+
+</div>
+</div>
+</div>
+<div class="footer" role="contentinfo">
+<ul>
+<li><a href="https://www.mail-archive.com/">The Mail Archive home</a></li>
+<li><a href="https://www.mail-archive.com/faq.html#newlist">Add your mailing list</a></li>
+<li><a href="https://www.mail-archive.com/faq.html">FAQ</a></li>
+<li><a href="https://www.mail-archive.com/faq.html#support">Support</a></li>
+<li><a href="https://www.mail-archive.com/faq.html#privacy">Privacy</a></li>
+<li class="darkgray">87zhicigkw.fsf@george.fritz.box</li>
+</ul>
+</div>
+
+
+</body></html>
