@@ -69,9 +69,9 @@ static const Layout layouts[] = {
 	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG} }, \
 	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG} }, \
 	{ MODKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG} }, \
-	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} }, \
-	{ MODKEY|OTHERMOD,              KEY,      swapviewandmon, {.ui = 1 << TAG} }, \
-	{ MODKEY|ShiftMask|OTHERMOD,    KEY,      swapandsend, 	  {.ui = 1 << TAG} },
+	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} },
+	/* { MODKEY|OTHERMOD,              KEY,      swapviewandmon, {.ui = 1 << TAG} }, \ */
+	/* { MODKEY|ShiftMask|OTHERMOD,    KEY,      swapandsend, 	  {.ui = 1 << TAG} }, */
 
 #define AGKEYS(KEY,NUM) \
 	{ AG,                          KEY,      focusmonview,   {.i = NUM-1,} }, \
@@ -127,7 +127,9 @@ static Key keys[] = {
 	{ MODKEY,                       XK_e,  focusnthmon,       {.i = 1 } },
 	{ MODKEY|ShiftMask,             XK_e,  tagnthmon,       	{.i = 1 } },
 	{ MODKEY,                       XK_r,  focusnthmon,       {.i = 2 } },
-	{ MODKEY|ShiftMask,             XK_r,  tagnthmon,       	{.i = 2 } },
+	{ MODKEY|ShiftMask,             XK_r,  tagnthmon,      	  {.i = 2 } },
+	{ MODKEY|ShiftMask,             XK_u,  spit,              {.i = 0 } },
+	/* { MODKEY|ControlMask,           XK_c,  copyfocused,       {0} }, */
 
 	/* { MODKEY,                       XK_w,  focusmon,       {.i = -1 } }, */
 	/* { MODKEY,                       XK_e, focusmon,       {.i = +1 } }, */

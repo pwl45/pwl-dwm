@@ -252,6 +252,8 @@ static void swapviewandmon(const Arg *arg);
 static void swapandsend(const Arg *arg);
 static void unfocus(Client *c, int setfocus);
 static void unmanage(Client *c, int destroyed);
+static void unswallow(Client *c);
+static void spit(const Arg *arg);
 static void unmapnotify(XEvent *e);
 static void updatebarpos(Monitor *m);
 static void updatebars(void);
@@ -465,7 +467,6 @@ attachstack(Client *c)
 void
 swallow(Client *p, Client *c)
 {
-
 	if (c->noswallow || c->isterminal)
 		return;
 	if (c->noswallow && !swallowfloating && c->isfloating)
@@ -490,6 +491,7 @@ swallow(Client *p, Client *c)
 	updateclientlist();
 }
 
+
 void
 unswallow(Client *c)
 {
@@ -508,6 +510,35 @@ unswallow(Client *c)
 	focus(NULL);
 	arrange(c->mon);
 }
+
+void
+spit(const Arg *arg){
+	Client *c = selmon->sel;
+	if(!c->swallowing){
+		return;
+	}
+	Client *s = c->swallowing;
+
+	Window w = s->win;
+	s->win = c->win;
+	c->win = w;
+	/* c->win = s->win; */
+	attach(s);
+	attachstack(s);
+	setclientstate(s, NormalState);
+	XMapWindow(dpy, s->win);
+	XMapWindow(dpy, c->win);
+	XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
+	XMoveResizeWindow(dpy, s->win, s->x, s->y, s->w, s->h);
+	arrange(c->mon);
+	configure(c);
+	configure(s);
+	updateclientlist();
+	c->swallowing = NULL;
+	s->swallowing = NULL;
+	focus(NULL);
+}
+
 
 void
 buttonpress(XEvent *e)
@@ -954,6 +985,7 @@ expose(XEvent *e)
 void
 focus(Client *c)
 {
+	//If client is null, find first visible client on selmon's stack
 	if (!c || !ISVISIBLE(c))
 		for (c = selmon->stack; c && !ISVISIBLE(c); c = c->snext);
 	if (selmon->sel && selmon->sel != c)
@@ -1914,6 +1946,8 @@ spawn(const Arg *arg)
 void
 tag(const Arg *arg)
 {
+	/*  selected mon not null*/
+	/*                 arg->ui is valid tag*/
 	if (selmon->sel && arg->ui & TAGMASK) {
 		selmon->sel->tags = arg->ui & TAGMASK;
 		focus(NULL);
@@ -1949,17 +1983,6 @@ tagmonview(const Arg *arg){
 	tag(&viewarg);
 	view(&viewarg);
 }
-
-//Note: Sloppy, only works well for dual monitor (not 3+)
-/* void swapandsend(const Arg *arg){ */
-/* 	Arg otherarg = {.i=+1}; */
-
-/* 	tagmon(&otherarg); */
-/* 	focusmon(&otherarg); */
-/* 	tag(arg); */
-/* 	view(arg); */
-/* 	/1* keys[i].func(&(keys[i].arg)); *1/ */
-/* } */
 
 void
 tile(Monitor *m)
@@ -2374,12 +2397,19 @@ updatewmhints(Client *c)
 	}
 }
 
+//seltags is either 1 or 0, doesn't really matter
+//selmon->tasgset[selmon->seltags] stores current tagset
+//selmon->tagset[!selmon->seltags] is previous tagset, accessed with MOD+TAB
 void
 view(const Arg *arg)
 {
 	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
 		return;
-	selmon->seltags ^= 1; /* toggle sel tagset */
+
+	/* This should really be seltags = !seltags i think */
+	selmon->seltags ^= 1; /* Toggle tagset: preserve the old one*/
+
+	/* Set tagset */
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
 	focus(NULL);
