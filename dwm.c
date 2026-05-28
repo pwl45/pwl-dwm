@@ -275,6 +275,7 @@ static void zoom(const Arg *arg);
 
 static pid_t getparentprocess(pid_t p);
 static int isdescprocess(pid_t p, pid_t c);
+static pid_t termpidfortty(pid_t p);
 static Client *swallowingclient(Window w);
 static Client *termforwin(const Client *c);
 static pid_t winpid(Window w);
@@ -2511,11 +2512,56 @@ isdescprocess(pid_t p, pid_t c)
 	return (int)c;
 }
 
+/* Reads /proc/<p>/stat, decodes the controlling tty to a pts minor,
+ * looks up /tmp/dwm-tty/<minor> for a terminal PID written by the tmux
+ * hook in ~/.tmux.conf. Used to swallow GUIs spawned inside a tmux pane,
+ * where the normal PPID walk fails (tmux server reparents its children). */
+pid_t
+termpidfortty(pid_t p)
+{
+#ifdef __linux__
+	FILE *f;
+	char buf[512], path[64], *s;
+	unsigned long tty_nr = 0;
+	unsigned int major, minor;
+	pid_t term_pid = 0;
+	size_t n;
+
+	snprintf(path, sizeof(path), "/proc/%u/stat", (unsigned)p);
+	if (!(f = fopen(path, "r")))
+		return 0;
+	n = fread(buf, 1, sizeof(buf) - 1, f);
+	fclose(f);
+	if (n == 0)
+		return 0;
+	buf[n] = '\0';
+	if (!(s = strrchr(buf, ')')))
+		return 0;
+	if (sscanf(s + 1, " %*c %*d %*d %*d %lu", &tty_nr) != 1 || tty_nr == 0)
+		return 0;
+	major = (tty_nr >> 8) & 0xfff;
+	minor = (tty_nr & 0xff) | ((tty_nr >> 12) & 0xfff00);
+	if (major != 136)
+		return 0;
+	snprintf(path, sizeof(path), "/tmp/dwm-tty/%u", minor);
+	if (!(f = fopen(path, "r")))
+		return 0;
+	if (fscanf(f, "%u", &term_pid) != 1)
+		term_pid = 0;
+	fclose(f);
+	return term_pid;
+#else
+	(void)p;
+	return 0;
+#endif
+}
+
 Client *
 termforwin(const Client *w)
 {
 	Client *c;
 	Monitor *m;
+	pid_t tpid;
 
 	if (!w->pid || w->isterminal)
 		return NULL;
@@ -2524,6 +2570,15 @@ termforwin(const Client *w)
 		for (c = m->clients; c; c = c->next) {
 			if (c->isterminal && !c->swallowing && c->pid && isdescprocess(c->pid, w->pid))
 				return c;
+		}
+	}
+
+	if ((tpid = termpidfortty(w->pid))) {
+		for (m = mons; m; m = m->next) {
+			for (c = m->clients; c; c = c->next) {
+				if (c->isterminal && !c->swallowing && c->pid == tpid)
+					return c;
+			}
 		}
 	}
 
