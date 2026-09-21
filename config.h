@@ -3,13 +3,20 @@
 #include <X11/XF86keysym.h>
 
 /* appearance */
+#define STRINGIFY_(x) #x
+#define STRINGIFY(x) STRINGIFY_(x)
+#ifndef DWM_FONT_PIXELS
+#define DWM_FONT_PIXELS 14
+#endif
+#define DWM_FONT "mono:pixelsize=" STRINGIFY(DWM_FONT_PIXELS) ":antialias=true:autohint=true"
+
 static const unsigned int borderpx  = 2;        /* border pixel of windows */
 static const unsigned int snap      = 32;       /* snap pixel */
 static const int rmaster            = 0;        /* 0 means no bar */
 static const int showbar            = 1;        /* 0 means no bar */
 static const int topbar             = 1;        /* 0 means bottom bar */
-static const char *fonts[]          = { "monospace:size=10" };
-static const char dmenufont[]       = "monospace:size=10";
+static const char *fonts[]          = { DWM_FONT };
+static const char dmenufont[]       = DWM_FONT;
 static const char col_gray1[]       = "#222222";
 static const char col_gray2[]       = "#444444";
 static const char col_gray3[]       = "#bbbbbb";
@@ -274,4 +281,3 @@ static Button buttons[] = {
 	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
 	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
 };
-
